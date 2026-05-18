@@ -1,6 +1,8 @@
 # Architecture Diagram & Technical Choices
 **Project:** In-House Goal Setting & Tracking Portal
 
+![System Architecture Diagram](system_architecture.png)
+
 ## Core Technologies
 - **Frontend Framework:** React 18 with Vite (for extremely fast HMR and optimized builds)
 - **Styling:** Tailwind CSS v4 (for rapid, utility-first UI development without bloated CSS files)
