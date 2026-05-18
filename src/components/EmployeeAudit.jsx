@@ -3,12 +3,18 @@ import { useStore } from '../store/Store';
 import { History, ShieldAlert } from 'lucide-react';
 
 export default function EmployeeAudit() {
-  const { auditTrails, currentUser } = useStore();
+  const { auditTrails, currentUser, goalSheets } = useStore();
 
-  // Filter audit trails that target current user's sheets/goals
+  // Find all active goal sheet IDs belonging to the logged-in employee dynamically
+  const mySheetIds = goalSheets
+    .filter(s => s.user_id === currentUser.id)
+    .map(s => s.id);
+
+  // Filter audit trails that target current user's sheets/goals or were performed by them
   const myAuditLogs = auditTrails.filter(log => {
-    // Show changes made by current user or targeting current user's goals
-    return log.operator === currentUser.name || log.target.includes('gs1') || log.target.includes('gs2');
+    const isActor = log.operator === currentUser.name || log.operator === currentUser.id;
+    const targetsMySheet = mySheetIds.some(sid => log.target === sid || log.target.includes(sid));
+    return isActor || targetsMySheet;
   });
 
   return (
