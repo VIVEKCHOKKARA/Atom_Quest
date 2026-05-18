@@ -2,10 +2,10 @@ import React, { createContext, useContext, useState } from 'react';
 
 // Seed Data
 const initialUsers = [
-  { id: 'u1', username: 'admin', password: 'password123', name: 'Alice Admin', role: 'Admin', manager_id: null },
-  { id: 'u2', username: 'manager', password: 'password123', name: 'Bob Manager', role: 'Manager', manager_id: 'u1' },
-  { id: 'u3', username: 'employee1', password: 'password123', name: 'Charlie Employee', role: 'Employee', manager_id: 'u2' },
-  { id: 'u4', username: 'employee2', password: 'password123', name: 'Diana Employee', role: 'Employee', manager_id: 'u2' },
+  { id: 'u1', username: 'admin', password: 'password123', name: 'Alice Admin', email: 'alice.admin@atomquest.com', role: 'Admin', manager_id: null, isVerified: true },
+  { id: 'u2', username: 'manager', password: 'password123', name: 'Bob Manager', email: 'bob.manager@atomquest.com', role: 'Manager', manager_id: 'u1', isVerified: true },
+  { id: 'u3', username: 'employee1', password: 'password123', name: 'Charlie Employee', email: 'charlie.employee@atomquest.com', role: 'Employee', manager_id: 'u2', isVerified: true },
+  { id: 'u4', username: 'employee2', password: 'password123', name: 'Diana Employee', email: 'diana.employee@atomquest.com', role: 'Employee', manager_id: 'u2', isVerified: true },
 ];
 
 const initialGoalSheets = [
@@ -28,7 +28,7 @@ const initialAuditTrails = [
 const StoreContext = createContext();
 
 export const StoreProvider = ({ children }) => {
-  const [users] = useState(initialUsers);
+  const [users, setUsers] = useState(initialUsers);
   const [goalSheets, setGoalSheets] = useState(initialGoalSheets);
   const [goalItems, setGoalItems] = useState(initialGoalItems);
   const [auditTrails, setAuditTrails] = useState(initialAuditTrails);
@@ -102,12 +102,33 @@ export const StoreProvider = ({ children }) => {
     ]);
   };
 
+  const registerUser = (newUser) => {
+    setUsers(prev => [...prev, newUser]);
+    // Create goal sheet if employee
+    if (newUser.role === 'Employee') {
+      const sheetId = `gs_${newUser.id}`;
+      setGoalSheets(prev => [...prev, { id: sheetId, user_id: newUser.id, cycle_period: '2026-H1', status: 'Draft' }]);
+    }
+    logAudit(newUser.id, 'User Sign Up', 'registration', '', `User registered: ${newUser.username} (${newUser.role})`);
+  };
+
+  const verifyUser = (userId) => {
+    setUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        logAudit(u.id, 'User Verification', 'isVerified', 'false', 'true');
+        return { ...u, isVerified: true };
+      }
+      return u;
+    }));
+  };
+
   const store = {
     users, currentUser, setCurrentUser,
     goalSheets, setGoalSheets, updateGoalSheetStatus,
     goalItems, saveGoalItems, updateGoalItem, pushSharedGoal,
     auditTrails, logAudit,
-    systemMonth, setSystemMonth
+    systemMonth, setSystemMonth,
+    registerUser, verifyUser
   };
 
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;

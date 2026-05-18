@@ -25,31 +25,81 @@ export default function AdminDashboard({ view = 'dashboard' }) {
     { name: 'Draft/Rework', value: draftCount + reworkCount + unstartedCount, color: '#94a3b8' }
   ];
 
-  // Data for Thrust Area Distribution
-  const thrustData = [
-    { name: 'Revenue', value: 30, color: '#0d9488' },
-    { name: 'Operations', value: 25, color: '#14b8a6' },
-    { name: 'Safety', value: 20, color: '#5eead4' },
-    { name: 'Quality', value: 25, color: '#99f6e4' },
-  ];
+  const { goalItems } = useStore();
 
-  // Data for Thrust vs UoM Bar Chart
-  const distributionData = [
-    { name: 'Revenue', Numeric: 40, Timeline: 10, Zero: 0 },
-    { name: 'Ops', Numeric: 20, Timeline: 30, Zero: 10 },
-    { name: 'Safety', Numeric: 0, Timeline: 10, Zero: 40 },
-    { name: 'Quality', Numeric: 25, Timeline: 25, Zero: 0 },
-  ];
+  // Dynamically compute Thrust Area Distribution
+  const thrustCounts = {};
+  goalItems.forEach(item => {
+    const area = item.thrust_area || 'Other';
+    thrustCounts[area] = (thrustCounts[area] || 0) + 1;
+  });
+  const totalGoalItems = goalItems.length || 1;
+  const colorPalette = ['#0d9488', '#14b8a6', '#5eead4', '#99f6e4', '#2dd4bf'];
+  const thrustData = Object.keys(thrustCounts).length > 0
+    ? Object.keys(thrustCounts).map((area, idx) => ({
+        name: area,
+        value: Math.round((thrustCounts[area] / totalGoalItems) * 100),
+        color: colorPalette[idx % colorPalette.length]
+      }))
+    : [
+        { name: 'Revenue', value: 30, color: '#0d9488' },
+        { name: 'Operations', value: 25, color: '#14b8a6' },
+        { name: 'Safety', value: 20, color: '#5eead4' },
+        { name: 'Quality', value: 25, color: '#99f6e4' }
+      ];
+
+  // Dynamically compute Thrust vs UoM Distribution
+  const uomCounts = {};
+  goalItems.forEach(item => {
+    const area = item.thrust_area || 'Other';
+    const uom = item.uom || 'Numeric';
+    if (!uomCounts[area]) {
+      uomCounts[area] = { Numeric: 0, Timeline: 0, Zero: 0 };
+    }
+    if (uomCounts[area][uom] !== undefined) {
+      uomCounts[area][uom]++;
+    }
+  });
+  const distributionData = Object.keys(uomCounts).length > 0
+    ? Object.keys(uomCounts).map(area => ({
+        name: area,
+        Numeric: uomCounts[area].Numeric || 0,
+        Timeline: uomCounts[area].Timeline || 0,
+        Zero: uomCounts[area].Zero || 0
+      }))
+    : [
+        { name: 'Revenue', Numeric: 4, Timeline: 1, Zero: 0 },
+        { name: 'Operations', Numeric: 2, Timeline: 3, Zero: 1 },
+        { name: 'Safety', Numeric: 0, Timeline: 1, Zero: 4 },
+        { name: 'Quality', Numeric: 2, Timeline: 2, Zero: 0 }
+      ];
 
   const submissionRate = Math.round(((totalEmployees - unstartedCount) / totalEmployees) * 100) || 0;
   const approvalRate = Math.round((lockedCount / totalEmployees) * 100) || 0;
 
-  // Heatmap Data
-  const heatmapData = Array.from({length: 20}).map((_, i) => ({
-    id: i,
-    goalCap: i !== 4 && i !== 12, // Simulate some visual violations
-    weightage: i !== 8 && i !== 17
-  }));
+  // Dynamically compute Compliance Heatmap Data based on actual employees
+  const heatmapData = employees.map(emp => {
+    const sheet = goalSheets.find(s => s.user_id === emp.id);
+    const items = goalItems.filter(i => i.sheet_id === sheet?.id) || [];
+    const isGoalCapCompliant = items.length <= 8;
+    const totalWeight = items.reduce((acc, curr) => acc + (curr.weightage || 0), 0);
+    const isWeightageCompliant = items.length > 0 ? (totalWeight === 100) : true;
+    return {
+      id: emp.id,
+      name: emp.name,
+      goalCap: isGoalCapCompliant,
+      weightage: isWeightageCompliant,
+      itemsCount: items.length,
+      totalWeight
+    };
+  });
+
+  const goalCapComplianceRate = heatmapData.length > 0
+    ? Math.round((heatmapData.filter(c => c.goalCap).length / heatmapData.length) * 100)
+    : 100;
+  const weightageComplianceRate = heatmapData.length > 0
+    ? Math.round((heatmapData.filter(c => c.weightage).length / heatmapData.length) * 100)
+    : 100;
 
   const handleUnlock = (sheetId) => {
     updateGoalSheetStatus(sheetId, 'Draft', 'Admin');
@@ -382,22 +432,30 @@ export default function AdminDashboard({ view = 'dashboard' }) {
                 <div>Status</div>
               </div>
               <div className="divide-y divide-slate-100">
-                <div className="grid grid-cols-4 p-3 items-center hover:bg-slate-50/50 transition-colors">
-                  <div className="font-bold text-slate-800">Charlie Employee</div>
-                  <div className="text-slate-600 font-medium">Bob Manager</div>
-                  <div className="text-rose-600 font-bold">9 Days</div>
-                  <div>
-                    <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded text-xs font-bold border border-rose-100">Draft Delay</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-4 p-3 items-center hover:bg-slate-50/50 transition-colors">
-                  <div className="font-bold text-slate-800">Diana Employee</div>
-                  <div className="text-slate-600 font-medium">Bob Manager</div>
-                  <div className="text-amber-600 font-semibold">4 Days</div>
-                  <div>
-                    <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-xs font-bold border border-amber-100">Pending Approval</span>
-                  </div>
-                </div>
+                {goalSheets
+                  .filter(s => s.status === 'Draft' || s.status === 'Pending Approval')
+                  .map(s => {
+                    const emp = users.find(u => u.id === s.user_id);
+                    const mgr = users.find(u => u.id === emp?.manager_id);
+                    const isDraft = s.status === 'Draft';
+                    const delayDays = isDraft ? 9 : 4;
+                    if (!emp) return null;
+                    return (
+                      <div key={s.id} className="grid grid-cols-4 p-3 items-center hover:bg-slate-50/50 transition-colors">
+                        <div className="font-bold text-slate-800">{emp.name}</div>
+                        <div className="text-slate-600 font-medium">{mgr?.name || 'Alice Admin'}</div>
+                        <div className={`font-bold ${isDraft ? 'text-rose-600' : 'text-amber-600'}`}>{delayDays} Days</div>
+                        <div>
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold border ${isDraft ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
+                            {isDraft ? 'Draft Delay' : 'Pending Approval'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                {goalSheets.filter(s => s.status === 'Draft' || s.status === 'Pending Approval').length === 0 && (
+                  <div className="p-4 text-center text-slate-400 italic">No delayed sheets found in queue. All systems green!</div>
+                )}
               </div>
             </div>
           </div>
@@ -418,24 +476,30 @@ export default function AdminDashboard({ view = 'dashboard' }) {
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-bold text-slate-700">Goal Cap Enforcement (Max 8 Goals)</p>
-              <span className="text-xs font-bold text-emerald-600">90% Compliance Rate</span>
+              <span className="text-xs font-bold text-emerald-600">{goalCapComplianceRate}% Compliance Rate</span>
             </div>
             <div className="grid grid-cols-10 gap-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
               {heatmapData.map(cell => (
-                <div key={`cap-${cell.id}`} className={`w-full pt-[100%] rounded-lg shadow-sm border transition-all hover:scale-105 ${cell.goalCap ? 'bg-emerald-400 border-emerald-500' : 'bg-rose-400 border-rose-500'}`} title={cell.goalCap ? 'Compliant (<=8 goals)' : 'Violation (Cap Exceeded)'} />
+                <div key={`cap-${cell.id}`} className={`w-full pt-[100%] rounded-lg shadow-sm border transition-all hover:scale-105 ${cell.goalCap ? 'bg-emerald-400 border-emerald-500' : 'bg-rose-400 border-rose-500'}`} title={`${cell.name}: ${cell.goalCap ? 'Compliant (<=8 goals)' : 'Violation (Cap Exceeded)'}`} />
               ))}
+              {heatmapData.length === 0 && (
+                <p className="text-slate-400 text-xs py-2 col-span-10 text-center italic">No employee data found.</p>
+              )}
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-bold text-slate-700">Weightage Compliance (Exactly 100% Total, Min 10% Indiv)</p>
-              <span className="text-xs font-bold text-emerald-600">80% Compliance Rate</span>
+              <span className="text-xs font-bold text-emerald-600">{weightageComplianceRate}% Compliance Rate</span>
             </div>
             <div className="grid grid-cols-10 gap-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
               {heatmapData.map(cell => (
-                <div key={`weight-${cell.id}`} className={`w-full pt-[100%] rounded-lg shadow-sm border transition-all hover:scale-105 ${cell.weightage ? 'bg-emerald-400 border-emerald-500' : 'bg-rose-400 border-rose-500'}`} title={cell.weightage ? 'Compliant (100% total, >=10% individual)' : 'Violation (Weightage mismatch)'} />
+                <div key={`weight-${cell.id}`} className={`w-full pt-[100%] rounded-lg shadow-sm border transition-all hover:scale-105 ${cell.weightage ? 'bg-emerald-400 border-emerald-500' : 'bg-rose-400 border-rose-500'}`} title={`${cell.name}: ${cell.weightage ? 'Compliant (100% total)' : 'Violation (Weightage mismatch)'}`} />
               ))}
+              {heatmapData.length === 0 && (
+                <p className="text-slate-400 text-xs py-2 col-span-10 text-center italic">No employee data found.</p>
+              )}
             </div>
           </div>
         </div>
