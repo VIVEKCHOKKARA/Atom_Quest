@@ -119,7 +119,7 @@ export default function Login() {
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(signupEmail)) {
-      setSignupError('Please enter a valid email address.');
+      setSignupError('Invalid email');
       return;
     }
 
@@ -430,19 +430,29 @@ export default function Login() {
                   </div>
 
                   {/* Email field for simulated verification */}
-                  <div>
+                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">Corporate Email Address</label>
                     <div className="relative">
                       <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                       <input 
                         type="email" 
                         value={signupEmail}
-                        onChange={(e) => setSignupEmail(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-950/50 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all"
+                        onChange={(e) => {
+                          setSignupEmail(e.target.value);
+                          if (signupError === 'Invalid email') {
+                            setSignupError('');
+                          }
+                        }}
+                        className={`w-full pl-10 pr-4 py-2.5 bg-slate-950/50 border ${signupEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupEmail) ? 'border-rose-500/50 focus:border-rose-500' : 'border-slate-800 focus:border-teal-500'} rounded-xl text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 ${signupEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupEmail) ? 'focus:ring-rose-500' : 'focus:ring-teal-500'} transition-all`}
                         placeholder="charlie@atomquest.com"
                         required
                       />
                     </div>
+                    {signupEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupEmail) && (
+                      <p className="text-[10px] text-rose-400 mt-1.5 font-bold flex items-center gap-1 pl-1">
+                        <AlertCircle className="w-3.5 h-3.5 text-rose-500" /> Invalid email
+                      </p>
+                    )}
                   </div>
 
                   {/* Password field */}
